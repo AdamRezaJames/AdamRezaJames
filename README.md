@@ -45,6 +45,16 @@
 ![](https://github-profile-trophy.vercel.app/?username=AdamRezaJames&theme=radical&no-frame=true&no-bg=false&margin-w=4)
 
 
+<!-- BEGIN YOUTUBE-CARDS 
+## 📺 Latest YouTube Videos
+[![Java Isn't Verbose // we just suck](https://ytcards.demolab.com/?id=UZuWeLjyT3c&title=Java+Isn%27t+Verbose+%2F%2F+we+just+suck&lang=en&timestamp=1761941401&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=250&border_radius=5&duration=1275 "Java Isn't Verbose // we just suck")](https://www.youtube.com/watch?v=UZuWeLjyT3c)
+[![Everything You Need to Know About Coding with AI // NOT vibe coding](https://ytcards.demolab.com/?id=5fhcklZe-qE&title=Everything+You+Need+to+Know+About+Coding+with+AI+%2F%2F+NOT+vibe+coding&lang=en&timestamp=1760552100&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=250&border_radius=5&duration=795 "Everything You Need to Know About Coding with AI // NOT vibe coding")](https://www.youtube.com/watch?v=5fhcklZe-qE)
+[![AI is writing 90% of your code?](https://ytcards.demolab.com/?id=howz8BKRUQM&title=AI+is+writing+90%25+of+your+code%3F&lang=en&timestamp=1758908426&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=250&border_radius=5&duration=19 "AI is writing 90% of your code?")](https://www.youtube.com/shorts/howz8BKRUQM)
+[![Java just got cleaner](https://ytcards.demolab.com/?id=YLCrAm-aGI8&title=Java+just+got+cleaner&lang=en&timestamp=1758046504&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=250&border_radius=5&duration=449 "Java just got cleaner")](https://www.youtube.com/watch?v=YLCrAm-aGI8)
+[![Java is 30 Years Old // Here’s Why It’s Still Winning](https://ytcards.demolab.com/?id=spJwsa4KFrU&title=Java+is+30+Years+Old+%2F%2F+Here%E2%80%99s+Why+It%E2%80%99s+Still+Winning&lang=en&timestamp=1757602898&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=250&border_radius=5&duration=574 "Java is 30 Years Old // Here’s Why It’s Still Winning")](https://www.youtube.com/watch?v=spJwsa4KFrU)
+[![Portable Workstation](https://ytcards.demolab.com/?id=s3uqGfDc8P8&title=Portable+Workstation&lang=en&timestamp=1755897603&background_color=%230d1117&title_color=%23ffffff&stats_color=%23dedede&max_title_lines=1&width=250&border_radius=5&duration=51 "Portable Workstation")](https://www.youtube.com/shorts/s3uqGfDc8P8)
+<!-- END YOUTUBE-CARDS -->
+
 <!--
 ### 🔝 Top Contributed Repo
 ![](https://github-contributor-stats.vercel.app/api?username=AdamRezaJames&limit=5&theme=radical&combine_all_yearly_contributions=true)
