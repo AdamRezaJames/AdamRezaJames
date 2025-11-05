@@ -7,9 +7,14 @@ on:
 jobs:
   update-commit-stats:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_COMMIT_STATS }}
 
       - name: Install dependencies
         run: |
@@ -26,9 +31,8 @@ jobs:
 
           TOTAL=0
           for REPO in $REPO_LIST; do
-            COUNT=$(curl -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/commits?per_page=1" | jq -r 'length')
-            if [ "$COUNT" != "null" ]; then
-              COMMITS=$(curl -I -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/commits?per_page=1" | grep -i "link" | sed -n 's/.*&page=\([0-9]*\)>; rel="last".*/\1/p')
+            COMMITS=$(curl -I -s -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/commits?per_page=1" | grep -i "link" | sed -n 's/.*&page=\([0-9]*\)>; rel="last".*/\1/p')
+            if [[ "$COMMITS" =~ ^[0-9]+$ ]]; then
               TOTAL=$((TOTAL + COMMITS))
             fi
           done
