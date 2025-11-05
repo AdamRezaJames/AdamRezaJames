@@ -54,4 +54,4 @@ jobs:
           git config user.email "github-actions@github.com"
           git add commits.svg
           git commit -m "Update commit stats badge" || echo "No changes to commit"
-          git push https://$GH_TOKEN@github.com/AdamRezaJames/AdamRezaJames.git HEAD:main
+          git push https://${{GH_TOKEN}}@github.com/AdamRezaJames/AdamRezaJames.git HEAD:main
