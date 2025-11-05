@@ -35,7 +35,10 @@
 
 <!-- Github Stats from https://github-readme-stats -->
 ## 📊 GitHub Stats:
+<!--
 ![](https://github-readme-stats.vercel.app/api?username=AdamRezaJames&show_icons=true&hide=issues&theme=radical&hide_border=true&include_all_commits=true&count_private=false)<br/>
+-->
+![Total Commits](https://raw.githubusercontent.com/AdamRezaJames/AdamRezaJames/main/commits.svg)<br/>
 <!--
 ![](https://nirzak-streak-stats.vercel.app/?user=AdamRezaJames&theme=dark&hide_border=true)<br/>
 ![](https://github-readme-stats.vercel.app/api/top-langs/?username=AdamRezaJames&theme=dark&hide_border=true&include_all_commits=true&count_private=false&layout=compact)
@@ -43,7 +46,6 @@
 
 ## 🏆 GitHub Trophies
 ![](https://github-profile-trophy.vercel.app/?username=AdamRezaJames&theme=radical&no-frame=true&no-bg=false&margin-w=4)
-
 
 <!-- BEGIN YOUTUBE-CARDS 
 ## 📺 Latest YouTube Videos
