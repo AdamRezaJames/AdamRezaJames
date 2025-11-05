@@ -66,6 +66,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "Badge already up to date, no commit needed"
           else
-            git commit -m "📊 Update commit stats: $(date +'%Y-%m-%d %H:%M')"
+            git commit -m "📊 Update commit stats: $(date +'%Y-%m-%d %H:%M') [skip ci]"
             git push
           fi
