@@ -14,7 +14,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # token: ${{ secrets.PAT_COMMIT_STATS }}
           persist-credentials: true
       
       - name: Install dependencies
@@ -24,69 +23,111 @@ jobs:
       
       - name: Get total commits from ALL sources
         env:
-          # GH_TOKEN: ${{ secrets.PAT_COMMIT_STATS }}
           GH_TOKEN: ${{ github.token }}
           USERNAME: "AdamRezaJames"
         run: |
+          set -euo pipefail
+
           echo "🔍 Fetching ALL repositories (owned, forks, org repos, private)..."
-          
-          # Get all repos you have access to (including forks, private, org repos)
-          REPO_LIST=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/user/repos?per_page=100&affiliation=owner,collaborator,organization_member" \
-            | jq -r '.[].full_name')
-          
-          TOTAL=0
-          REPO_COUNT=0
-          
-          for REPO in $REPO_LIST; do
-            REPO_COUNT=$((REPO_COUNT + 1))
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "📦 [$REPO_COUNT] $REPO"
-            
-            # Count commits by you in this repo (all branches)
-            PAGE=1
-            REPO_TOTAL=0
-            
-            while true; do
-              RESPONSE=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
-                "https://api.github.com/repos/$REPO/commits?author=$USERNAME&per_page=100&page=$PAGE")
-              
-              COMMITS_ON_PAGE=$(echo "$RESPONSE" | jq '. | length')
-              
-              # Check if we got an error or empty response
-              if [ "$COMMITS_ON_PAGE" == "null" ] || [ -z "$COMMITS_ON_PAGE" ]; then
-                echo "  ⚠️ Skipping (no access or empty)"
-                break
-              fi
-              
-              if [ "$COMMITS_ON_PAGE" -eq 0 ]; then
-                break
-              fi
-              
-              REPO_TOTAL=$((REPO_TOTAL + COMMITS_ON_PAGE))
-              echo "  📄 Page $PAGE: +$COMMITS_ON_PAGE commits"
-              
-              if [ "$COMMITS_ON_PAGE" -lt 100 ]; then
-                break
-              fi
-              
-              PAGE=$((PAGE + 1))
-            done
-            
-            if [ "$REPO_TOTAL" -gt 0 ]; then
-              echo "  ✅ Total: $REPO_TOTAL commits"
-              TOTAL=$((TOTAL + REPO_TOTAL))
-            else
-              echo "  ⭕ No commits by you"
+
+          # Collect repos across pages safely
+          REPO_LIST=""
+          PAGE=1
+          while true; do
+            API_URL="https://api.github.com/user/repos?per_page=100&page=$PAGE&affiliation=owner,collaborator,organization_member"
+
+            HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/repos.json \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "$API_URL")
+
+            if [ "$HTTP_CODE" -ne 200 ]; then
+              echo "❌ Failed to fetch repos (HTTP $HTTP_CODE)"
+              cat /tmp/repos.json
+              exit 1
             fi
+
+            # Ensure payload is array before indexing
+            PAGE_REPOS=$(jq -r 'if type=="array" then .[].full_name else empty end' /tmp/repos.json)
+
+            # Stop when no more repos
+            if [ -z "$PAGE_REPOS" ]; then
+              break
+            fi
+
+            REPO_LIST="${REPO_LIST}"$'\n'"${PAGE_REPOS}"
+
+            COUNT_ON_PAGE=$(jq 'length' /tmp/repos.json)
+            if [ "$COUNT_ON_PAGE" -lt 100 ]; then
+              break
+            fi
+
+            PAGE=$((PAGE + 1))
           done
-          
+
+          # Normalize list (remove blanks)
+          REPO_LIST=$(echo "$REPO_LIST" | sed '/^\s*$/d')
+
+          if [ -z "$REPO_LIST" ]; then
+            echo "⚠️ No repositories found."
+            TOTAL=0
+            REPO_COUNT=0
+          else
+            TOTAL=0
+            REPO_COUNT=0
+
+            while IFS= read -r REPO; do
+              [ -z "$REPO" ] && continue
+              REPO_COUNT=$((REPO_COUNT + 1))
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "📦 [$REPO_COUNT] $REPO"
+
+              PAGE=1
+              REPO_TOTAL=0
+
+              while true; do
+                COMMITS_URL="https://api.github.com/repos/$REPO/commits?author=$USERNAME&per_page=100&page=$PAGE"
+
+                HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/commits.json \
+                  -H "Authorization: Bearer $GH_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  "$COMMITS_URL")
+
+                if [ "$HTTP_CODE" -ne 200 ]; then
+                  echo "  ⚠️ Skipping (HTTP $HTTP_CODE)"
+                  break
+                fi
+
+                # If not an array, skip safely
+                COMMITS_ON_PAGE=$(jq 'if type=="array" then length else 0 end' /tmp/commits.json)
+
+                if [ "$COMMITS_ON_PAGE" -eq 0 ]; then
+                  break
+                fi
+
+                REPO_TOTAL=$((REPO_TOTAL + COMMITS_ON_PAGE))
+                echo "  📄 Page $PAGE: +$COMMITS_ON_PAGE commits"
+
+                if [ "$COMMITS_ON_PAGE" -lt 100 ]; then
+                  break
+                fi
+
+                PAGE=$((PAGE + 1))
+              done
+
+              if [ "$REPO_TOTAL" -gt 0 ]; then
+                echo "  ✅ Total: $REPO_TOTAL commits"
+                TOTAL=$((TOTAL + REPO_TOTAL))
+              else
+                echo "  ⭕ No commits by you"
+              fi
+            done <<< "$REPO_LIST"
+          fi
+
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🎯 TOTAL REPOSITORIES SCANNED: $REPO_COUNT"
           echo "🎯 GRAND TOTAL COMMITS: $TOTAL"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-          #comment
           
           # Create animated neon scanner badge
           echo "<svg xmlns='http://www.w3.org/2000/svg' width='330' height='80'>
