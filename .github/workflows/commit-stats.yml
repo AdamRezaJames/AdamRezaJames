@@ -1,57 +1,154 @@
-name: Update Total Commits
+name: Update Commit Stats Badge
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"
   workflow_dispatch:
-
-permissions:
-  contents: write
+  schedule:
+    - cron: '0 * * * *'
 
 jobs:
-  update-total-commits:
+  update-commit-stats:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout profile repo
+      - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Get total commits by author (global)
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Preflight token check
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          USERNAME: AdamRezaJames
+          GH_TOKEN: ${{ secrets.PAT_COMMIT_STATS }}
         run: |
           set -euo pipefail
 
-          # GitHub Search API for commits (global by author)
-          # We use per_page=1 because we only need total_count
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "❌ GH_TOKEN is empty. Check repo secret PAT_COMMIT_STATS."
+            exit 1
+          fi
+
+          echo "✅ GH_TOKEN injected (length: ${#GH_TOKEN})"
+
+          HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/me.json \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/user)
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "❌ Token preflight failed (HTTP $HTTP_CODE)"
+            cat /tmp/me.json
+            exit 1
+          fi
+
+          LOGIN=$(jq -r '.login // empty' /tmp/me.json)
+          echo "✅ Token valid for user: ${LOGIN:-unknown}"
+
+      - name: Get total commits globally
+        env:
+          GH_TOKEN: ${{ secrets.PAT_COMMIT_STATS }}
+          USERNAME: "AdamRezaJames"
+        run: |
+          set -euo pipefail
+
+          echo "🔍 Fetching global commit total for author:$USERNAME"
+
           API_URL="https://api.github.com/search/commits?q=author:${USERNAME}&per_page=1"
 
-          RESPONSE=$(curl -fsSL \
+          HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/commits_search.json \
+            -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
             "$API_URL")
 
-          TOTAL=$(echo "$RESPONSE" | jq -r '.total_count')
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "❌ Commit search failed (HTTP $HTTP_CODE)"
+            cat /tmp/commits_search.json
+            exit 1
+          fi
 
-          mkdir -p data
-          echo "$TOTAL" > data/total_commits.txt
+          TOTAL=$(jq -r '.total_count // 0' /tmp/commits_search.json)
 
-          echo "Total commits for ${USERNAME}: $TOTAL"
+          if ! [[ "$TOTAL" =~ ^[0-9]+$ ]]; then
+            echo "❌ Invalid total_count: $TOTAL"
+            cat /tmp/commits_search.json
+            exit 1
+          fi
 
-      - name: Commit and push if changed
+          echo "🎯 GLOBAL TOTAL COMMITS: $TOTAL"
+
+          # Create animated neon scanner badge
+          cat > commits.svg <<EOF
+          <svg xmlns='http://www.w3.org/2000/svg' width='330' height='80'>
+              <defs>
+                  <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='0%'>
+                      <stop offset='0%' style='stop-color:#ff00ff'/>
+                      <stop offset='50%' style='stop-color:#00ffff'/>
+                      <stop offset='100%' style='stop-color:#ff00ff'/>
+                  </linearGradient>
+                  <linearGradient id='scanline' x1='0%' y1='0%' x2='0%' y2='100%'>
+                      <stop offset='0%' style='stop-color:#00ffff;stop-opacity:0'/>
+                      <stop offset='50%' style='stop-color:#00ffff;stop-opacity:0.8'/>
+                      <stop offset='100%' style='stop-color:#00ffff;stop-opacity:0'/>
+                  </linearGradient>
+                  <filter id='glow'>
+                      <feGaussianBlur stdDeviation='3' result='coloredBlur'/>
+                      <feMerge>
+                          <feMergeNode in='coloredBlur'/>
+                          <feMergeNode in='SourceGraphic'/>
+                      </feMerge>
+                  </filter>
+                  <filter id='textglow'>
+                      <feGaussianBlur stdDeviation='2' result='coloredBlur'/>
+                      <feMerge>
+                          <feMergeNode in='coloredBlur'/>
+                          <feMergeNode in='SourceGraphic'/>
+                      </feMerge>
+                  </filter>
+              </defs>
+              <rect width='330' height='80' rx='15' fill='#000'/>
+              <rect x='3' y='3' width='324' height='74' rx='12' fill='#0d0d0d' stroke='url(#grad)' stroke-width='3' filter='url(#glow)'/>
+              <rect x='10' y='0' width='310' height='3' fill='url(#scanline)' filter='url(#glow)'>
+                  <animate attributeName='y' values='-3;80;-3' dur='3s' repeatCount='indefinite'/>
+              </rect>
+              <text x='165' y='35' fill='url(#grad)' font-size='15' text-anchor='middle' font-weight='700' font-family='monospace' letter-spacing='3'>⚡ TOTAL COMMITS ⚡</text>
+              <text x='165' y='60' fill='#fff' font-size='26' text-anchor='middle' font-weight='bold' font-family='monospace' filter='url(#textglow)'>$TOTAL</text>
+              <line x1='20' y1='40' x2='310' y2='40' stroke='url(#grad)' stroke-width='1' opacity='0.3'/>
+          </svg>
+          EOF
+
+      - name: Commit and push updated badge
         run: |
           set -euo pipefail
 
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add data/total_commits.txt
+          git pull --rebase origin main || true
+          git add commits.svg
 
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
+          if git diff --staged --quiet; then
+            echo "Badge already up to date"
             exit 0
           fi
 
-          git commit -m "chore: update total commits"
-          git push
+          git commit -m "📊 Update commit stats [skip ci]"
+
+          for i in {1..5}; do
+            if git push; then
+              echo "✅ Successfully pushed!"
+              exit 0
+            else
+              echo "⚠️ Push failed, retrying in 2 seconds... (attempt $i/5)"
+              sleep 2
+              git pull --rebase origin main || true
+            fi
+          done
+
+          echo "❌ Failed to push after retries"
+          exit 1
