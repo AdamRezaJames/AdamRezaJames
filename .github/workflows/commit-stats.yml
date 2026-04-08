@@ -23,12 +23,12 @@ jobs:
 
       - name: Preflight token check
         env:
-          GH_TOKEN: ${{ secrets.PAT_COMMIT_STATUS }}
+          GH_TOKEN: ${{ secrets.PAT_COMMIT_STATS }}
         run: |
           set -euo pipefail
 
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "❌ GH_TOKEN is empty. Check repo secret PAT_COMMIT_STATUS."
+            echo "❌ GH_TOKEN is empty. Check repo secret PAT_COMMIT_STATS."
             exit 1
           fi
 
