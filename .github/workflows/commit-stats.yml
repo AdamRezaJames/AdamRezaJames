@@ -1,222 +1,57 @@
-name: Update Commit Stats Badge
+name: Update Total Commits
+
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  update-commit-stats:
+  update-total-commits:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repo
+      - name: Checkout profile repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl
 
-      - name: Preflight token check
+      - name: Get total commits by author (global)
         env:
-          GH_TOKEN: ${{ secrets.PAT_COMMIT_STATS }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USERNAME: AdamRezaJames
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN:-}" ]; then
-            echo "❌ GH_TOKEN is empty. Check repo secret PAT_COMMIT_STATS."
-            exit 1
-          fi
+          # GitHub Search API for commits (global by author)
+          # We use per_page=1 because we only need total_count
+          API_URL="https://api.github.com/search/commits?q=author:${USERNAME}&per_page=1"
 
-          echo "✅ GH_TOKEN injected (length: ${#GH_TOKEN})"
-
-          HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/me.json \
-            -H "Authorization: Bearer $GH_TOKEN" \
+          RESPONSE=$(curl -fsSL \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/user)
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "$API_URL")
 
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "❌ Token preflight failed (HTTP $HTTP_CODE)"
-            cat /tmp/me.json
-            exit 1
-          fi
+          TOTAL=$(echo "$RESPONSE" | jq -r '.total_count')
 
-          LOGIN=$(jq -r '.login // empty' /tmp/me.json)
-          echo "✅ Token valid for user: ${LOGIN:-unknown}"
-      
-      - name: Get total commits from ALL sources
-        env:
-          # GH_TOKEN: ${{ github.token }}
-          GH_TOKEN: ${{ secrets.PAT_COMMIT_STATS }}
-          USERNAME: "AdamRezaJames"
+          mkdir -p data
+          echo "$TOTAL" > data/total_commits.txt
+
+          echo "Total commits for ${USERNAME}: $TOTAL"
+
+      - name: Commit and push if changed
         run: |
           set -euo pipefail
 
-          echo "🔍 Fetching ALL repositories (owned, forks, org repos, private)..."
-
-          # Collect repos across pages safely
-          REPO_LIST=""
-          PAGE=1
-          while true; do
-            API_URL="https://api.github.com/user/repos?per_page=100&page=$PAGE&affiliation=owner,collaborator,organization_member"
-
-            HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/repos.json \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "$API_URL")
-
-            if [ "$HTTP_CODE" -ne 200 ]; then
-              echo "❌ Failed to fetch repos (HTTP $HTTP_CODE)"
-              cat /tmp/repos.json
-              exit 1
-            fi
-
-            # Ensure payload is array before indexing
-            PAGE_REPOS=$(jq -r 'if type=="array" then .[].full_name else empty end' /tmp/repos.json)
-
-            # Stop when no more repos
-            if [ -z "$PAGE_REPOS" ]; then
-              break
-            fi
-
-            REPO_LIST="${REPO_LIST}"$'\n'"${PAGE_REPOS}"
-
-            COUNT_ON_PAGE=$(jq 'length' /tmp/repos.json)
-            if [ "$COUNT_ON_PAGE" -lt 100 ]; then
-              break
-            fi
-
-            PAGE=$((PAGE + 1))
-          done
-
-          # Normalize list (remove blanks)
-          REPO_LIST=$(echo "$REPO_LIST" | sed '/^\s*$/d')
-
-          if [ -z "$REPO_LIST" ]; then
-            echo "⚠️ No repositories found."
-            TOTAL=0
-            REPO_COUNT=0
-          else
-            TOTAL=0
-            REPO_COUNT=0
-
-            while IFS= read -r REPO; do
-              [ -z "$REPO" ] && continue
-              REPO_COUNT=$((REPO_COUNT + 1))
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "📦 [$REPO_COUNT] $REPO"
-
-              PAGE=1
-              REPO_TOTAL=0
-
-              while true; do
-                COMMITS_URL="https://api.github.com/repos/$REPO/commits?author=$USERNAME&per_page=100&page=$PAGE"
-
-                HTTP_CODE=$(curl -sS -w "%{http_code}" -o /tmp/commits.json \
-                  -H "Authorization: Bearer $GH_TOKEN" \
-                  -H "Accept: application/vnd.github+json" \
-                  "$COMMITS_URL")
-
-                if [ "$HTTP_CODE" -ne 200 ]; then
-                  echo "  ⚠️ Skipping (HTTP $HTTP_CODE)"
-                  break
-                fi
-
-                # If not an array, skip safely
-                COMMITS_ON_PAGE=$(jq 'if type=="array" then length else 0 end' /tmp/commits.json)
-
-                if [ "$COMMITS_ON_PAGE" -eq 0 ]; then
-                  break
-                fi
-
-                REPO_TOTAL=$((REPO_TOTAL + COMMITS_ON_PAGE))
-                echo "  📄 Page $PAGE: +$COMMITS_ON_PAGE commits"
-
-                if [ "$COMMITS_ON_PAGE" -lt 100 ]; then
-                  break
-                fi
-
-                PAGE=$((PAGE + 1))
-              done
-
-              if [ "$REPO_TOTAL" -gt 0 ]; then
-                echo "  ✅ Total: $REPO_TOTAL commits"
-                TOTAL=$((TOTAL + REPO_TOTAL))
-              else
-                echo "  ⭕ No commits by you"
-              fi
-            done <<< "$REPO_LIST"
-          fi
-
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🎯 TOTAL REPOSITORIES SCANNED: $REPO_COUNT"
-          echo "🎯 GRAND TOTAL COMMITS: $TOTAL"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          # Create animated neon scanner badge
-          echo "<svg xmlns='http://www.w3.org/2000/svg' width='330' height='80'>
-              <defs>
-                  <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='0%'>
-                      <stop offset='0%' style='stop-color:#ff00ff'/>
-                      <stop offset='50%' style='stop-color:#00ffff'/>
-                      <stop offset='100%' style='stop-color:#ff00ff'/>
-                  </linearGradient>
-                  <linearGradient id='scanline' x1='0%' y1='0%' x2='0%' y2='100%'>
-                      <stop offset='0%' style='stop-color:#00ffff;stop-opacity:0'/>
-                      <stop offset='50%' style='stop-color:#00ffff;stop-opacity:0.8'/>
-                      <stop offset='100%' style='stop-color:#00ffff;stop-opacity:0'/>
-                  </linearGradient>
-                  <filter id='glow'>
-                      <feGaussianBlur stdDeviation='3' result='coloredBlur'/>
-                      <feMerge>
-                          <feMergeNode in='coloredBlur'/>
-                          <feMergeNode in='SourceGraphic'/>
-                      </feMerge>
-                  </filter>
-                  <filter id='textglow'>
-                      <feGaussianBlur stdDeviation='2' result='coloredBlur'/>
-                      <feMerge>
-                          <feMergeNode in='coloredBlur'/>
-                          <feMergeNode in='SourceGraphic'/>
-                      </feMerge>
-                  </filter>
-              </defs>
-              <rect width='330' height='80' rx='15' fill='#000'/>
-              <rect x='3' y='3' width='324' height='74' rx='12' fill='#0d0d0d' stroke='url(#grad)' stroke-width='3' filter='url(#glow)'/>
-              <rect x='10' y='0' width='310' height='3' fill='url(#scanline)' filter='url(#glow)'>
-                  <animate attributeName='y' values='-3;80;-3' dur='3s' repeatCount='indefinite'/>
-              </rect>
-              <text x='165' y='35' fill='url(#grad)' font-size='15' text-anchor='middle' font-weight='700' font-family='monospace' letter-spacing='3'>⚡ TOTAL COMMITS ⚡</text>
-              <text x='165' y='60' fill='#fff' font-size='26' text-anchor='middle' font-weight='bold' font-family='monospace' filter='url(#textglow)'>$TOTAL</text>
-              <line x1='20' y1='40' x2='310' y2='40' stroke='url(#grad)' stroke-width='1' opacity='0.3'/>
-          </svg>" > commits.svg
-      
-      - name: Commit and push updated badge
-        run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git pull --rebase origin main || true
-          
-          git add commits.svg
-          
-          if git diff --staged --quiet; then
-            echo "Badge already up to date"
-          else
-            git commit -m "📊 Update commit stats [skip ci]"
-            
-            for i in {1..5}; do
-              if git push; then
-                echo "✅ Successfully pushed!"
-                break
-              else
-                echo "⚠️ Push failed, retrying in 2 seconds... (attempt $i/5)"
-                sleep 2
-                git pull --rebase origin main || true
-              fi
-            done
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/total_commits.txt
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
           fi
+
+          git commit -m "chore: update total commits"
+          git push
